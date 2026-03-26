@@ -10,6 +10,7 @@ add_executable(consumer
 target_include_directories(consumer
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../proto_gen
+    ${CMAKE_SOURCE_DIR}/src/rpcheader
 )
 
 target_link_directories(consumer

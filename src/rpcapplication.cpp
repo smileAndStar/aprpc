@@ -52,7 +52,7 @@ void RpcApplication::Init(int argc, char* argv[]) {
 }
     
 RpcApplication& RpcApplication::GetInstance() {
-    static RpcApplication instance; // 线程安全，只会创建一次
+    static RpcApplication instance; // 线程安全，只会创建一次(静态变量)
     return instance;
 }
 

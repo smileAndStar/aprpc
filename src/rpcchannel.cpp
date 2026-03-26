@@ -3,6 +3,7 @@
 #include "rpcheader.pb.h"
 #include "rpcapplication.h"
 #include "rpccontroller.h"
+#include "zookeeperutil.h"
 #include <boost/asio.hpp>
 
 void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
@@ -51,46 +52,63 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
     std::string send_buf;
     send_buf.append((char*)&header_size, 4);    // 1. 四字节的 header_size
     send_buf.append(header_str);                // 2. 数据头 header_str ：service_name + method_name + args_size
-    send_buf.append(args_str);                   // 3. 请求参数 args_str
+    send_buf.append(args_str);                  // 3. 请求参数 args_str
     // ============================================================
 
     // ==================== 通过网络发送rpc请求 ====================
     // 读取配置
-    std::string ip = RpcApplication::GetConfig().Load<std::string>("rpc.server_ip");
-    uint16_t port = RpcApplication::GetConfig().Load<int>("rpc.server_port");
+    // std::string ip = RpcApplication::GetConfig().Load<std::string>("rpc.server_ip");
+    // uint16_t port = RpcApplication::GetConfig().Load<int>("rpc.server_port");
+
+    // rpc调用的服务名和方法名
+    // service_name method_name
+    ZkClient zkCli;
+    zkCli.Start();
+    //  /UserServiceRpc/Login
+    std::string method_path = "/" + service_name + "/" + method_name;
+    // 127.0.0.1:8000
+    std::string host_data = zkCli.GetData(method_path.c_str());
+    if (host_data == "")
+    {
+        controller->SetFailed(method_path + " is not exist!");
+        return;
+    }
+    int idx = host_data.find(":");
+    if (idx == -1)
+    {
+        controller->SetFailed(method_path + " address is invalid!");
+        return;
+    }
+    std::string ip = host_data.substr(0, idx);
+    uint16_t port = atoi(host_data.substr(idx+1, host_data.size()-idx).c_str());
 
     // 使用Boost.Asio发起网络请求
-    try {
-        // 使用ASIO进行网络通信
-        boost::asio::io_context io_context; // 创建IO上下文
-        boost::asio::ip::tcp::socket socket(io_context);    // 创建TCP套接字
-        boost::asio::ip::tcp::resolver resolver(io_context);    // 创建解析器
+    // 使用ASIO进行网络通信
+    boost::asio::io_context io_context; // 创建IO上下文
+    boost::asio::ip::tcp::socket socket(io_context);    // 创建TCP套接字
+    boost::asio::ip::tcp::resolver resolver(io_context);    // 创建解析器
 
-        // 连接服务器
-        boost::asio::ip::tcp::resolver::results_type endpoints = resolver.resolve(ip, std::to_string(port));    // 解析服务器地址和端口
-        boost::asio::connect(socket, endpoints);    // 连接服务器
+    // 连接服务器
+    boost::asio::ip::tcp::resolver::results_type endpoints = resolver.resolve(ip, std::to_string(port));    // 解析服务器地址和端口
+    boost::asio::connect(socket, endpoints);    // 连接服务器
 
-        // 发送请求
-        boost::asio::write(socket, boost::asio::buffer(send_buf));    // 发送请求数据(write 会阻塞直到数据发送完毕)
+    // 发送请求
+    boost::asio::write(socket, boost::asio::buffer(send_buf));    // 发送请求数据(write 会阻塞直到数据发送完毕)
 
-        // 接收响应 - 使用长度前缀方式避免消息边界问题
-        // 1. 先读取4字节的响应长度
-        uint32_t response_len = 0;
-        boost::asio::read(socket, boost::asio::buffer(&response_len, sizeof(response_len)));
-        response_len = ntohl(response_len);  // 网络字节序转主机字节序
+    // 接收响应 - 使用长度前缀方式避免消息边界问题
+    // 1. 先读取4字节的响应长度
+    uint32_t response_len = 0;
+    boost::asio::read(socket, boost::asio::buffer(&response_len, sizeof(response_len)));
+    response_len = ntohl(response_len);  // 网络字节序转主机字节序
 
-        // 2. 根据长度读取完整的响应消息体
-        std::vector<char> response_body(response_len);
-        boost::asio::read(socket, boost::asio::buffer(response_body));
+    // 2. 根据长度读取完整的响应消息体
+    std::vector<char> response_body(response_len);
+    boost::asio::read(socket, boost::asio::buffer(response_body));
 
-        // 解析响应
-        std::string response_str(response_body.data(), response_len);
-        if (!response->ParseFromString(response_str)) {
-            controller->SetFailed("ParseFromString response failed!");
-            return;
-        }
-
-    } catch (std::exception& e) {
-        controller->SetFailed("RPC call exception: " + std::string(e.what()));
+    // 解析响应
+    std::string response_str(response_body.data(), response_len);
+    if (!response->ParseFromString(response_str)) {
+        controller->SetFailed("ParseFromString response failed!");
+        return;
     }
 }

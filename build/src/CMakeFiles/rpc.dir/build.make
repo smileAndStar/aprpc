@@ -57,9 +57,22 @@ include src/CMakeFiles/rpc.dir/progress.make
 # Include the compile flags for this target's objects.
 include src/CMakeFiles/rpc.dir/flags.make
 
+src/CMakeFiles/rpc.dir/logger.cpp.o: src/CMakeFiles/rpc.dir/flags.make
+src/CMakeFiles/rpc.dir/logger.cpp.o: ../src/logger.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object src/CMakeFiles/rpc.dir/logger.cpp.o"
+	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/rpc.dir/logger.cpp.o -c /home/smile/my_file/aprpc/src/logger.cpp
+
+src/CMakeFiles/rpc.dir/logger.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/rpc.dir/logger.cpp.i"
+	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/smile/my_file/aprpc/src/logger.cpp > CMakeFiles/rpc.dir/logger.cpp.i
+
+src/CMakeFiles/rpc.dir/logger.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/rpc.dir/logger.cpp.s"
+	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/smile/my_file/aprpc/src/logger.cpp -o CMakeFiles/rpc.dir/logger.cpp.s
+
 src/CMakeFiles/rpc.dir/rpcapplication.cpp.o: src/CMakeFiles/rpc.dir/flags.make
 src/CMakeFiles/rpc.dir/rpcapplication.cpp.o: ../src/rpcapplication.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object src/CMakeFiles/rpc.dir/rpcapplication.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object src/CMakeFiles/rpc.dir/rpcapplication.cpp.o"
 	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/rpc.dir/rpcapplication.cpp.o -c /home/smile/my_file/aprpc/src/rpcapplication.cpp
 
 src/CMakeFiles/rpc.dir/rpcapplication.cpp.i: cmake_force
@@ -72,7 +85,7 @@ src/CMakeFiles/rpc.dir/rpcapplication.cpp.s: cmake_force
 
 src/CMakeFiles/rpc.dir/rpcchannel.cpp.o: src/CMakeFiles/rpc.dir/flags.make
 src/CMakeFiles/rpc.dir/rpcchannel.cpp.o: ../src/rpcchannel.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object src/CMakeFiles/rpc.dir/rpcchannel.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object src/CMakeFiles/rpc.dir/rpcchannel.cpp.o"
 	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/rpc.dir/rpcchannel.cpp.o -c /home/smile/my_file/aprpc/src/rpcchannel.cpp
 
 src/CMakeFiles/rpc.dir/rpcchannel.cpp.i: cmake_force
@@ -85,7 +98,7 @@ src/CMakeFiles/rpc.dir/rpcchannel.cpp.s: cmake_force
 
 src/CMakeFiles/rpc.dir/rpccontroller.cpp.o: src/CMakeFiles/rpc.dir/flags.make
 src/CMakeFiles/rpc.dir/rpccontroller.cpp.o: ../src/rpccontroller.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object src/CMakeFiles/rpc.dir/rpccontroller.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object src/CMakeFiles/rpc.dir/rpccontroller.cpp.o"
 	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/rpc.dir/rpccontroller.cpp.o -c /home/smile/my_file/aprpc/src/rpccontroller.cpp
 
 src/CMakeFiles/rpc.dir/rpccontroller.cpp.i: cmake_force
@@ -98,7 +111,7 @@ src/CMakeFiles/rpc.dir/rpccontroller.cpp.s: cmake_force
 
 src/CMakeFiles/rpc.dir/rpcprovider.cpp.o: src/CMakeFiles/rpc.dir/flags.make
 src/CMakeFiles/rpc.dir/rpcprovider.cpp.o: ../src/rpcprovider.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object src/CMakeFiles/rpc.dir/rpcprovider.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object src/CMakeFiles/rpc.dir/rpcprovider.cpp.o"
 	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/rpc.dir/rpcprovider.cpp.o -c /home/smile/my_file/aprpc/src/rpcprovider.cpp
 
 src/CMakeFiles/rpc.dir/rpcprovider.cpp.i: cmake_force
@@ -109,9 +122,22 @@ src/CMakeFiles/rpc.dir/rpcprovider.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/rpc.dir/rpcprovider.cpp.s"
 	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/smile/my_file/aprpc/src/rpcprovider.cpp -o CMakeFiles/rpc.dir/rpcprovider.cpp.s
 
+src/CMakeFiles/rpc.dir/zookeeperutil.cpp.o: src/CMakeFiles/rpc.dir/flags.make
+src/CMakeFiles/rpc.dir/zookeeperutil.cpp.o: ../src/zookeeperutil.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object src/CMakeFiles/rpc.dir/zookeeperutil.cpp.o"
+	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/rpc.dir/zookeeperutil.cpp.o -c /home/smile/my_file/aprpc/src/zookeeperutil.cpp
+
+src/CMakeFiles/rpc.dir/zookeeperutil.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/rpc.dir/zookeeperutil.cpp.i"
+	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/smile/my_file/aprpc/src/zookeeperutil.cpp > CMakeFiles/rpc.dir/zookeeperutil.cpp.i
+
+src/CMakeFiles/rpc.dir/zookeeperutil.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/rpc.dir/zookeeperutil.cpp.s"
+	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/smile/my_file/aprpc/src/zookeeperutil.cpp -o CMakeFiles/rpc.dir/zookeeperutil.cpp.s
+
 src/CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.o: src/CMakeFiles/rpc.dir/flags.make
 src/CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.o: ../src/rpcheader/rpcheader.pb.cc
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object src/CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object src/CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.o"
 	cd /home/smile/my_file/aprpc/build/src && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.o -c /home/smile/my_file/aprpc/src/rpcheader/rpcheader.pb.cc
 
 src/CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.i: cmake_force
@@ -124,23 +150,27 @@ src/CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.s: cmake_force
 
 # Object files for target rpc
 rpc_OBJECTS = \
+"CMakeFiles/rpc.dir/logger.cpp.o" \
 "CMakeFiles/rpc.dir/rpcapplication.cpp.o" \
 "CMakeFiles/rpc.dir/rpcchannel.cpp.o" \
 "CMakeFiles/rpc.dir/rpccontroller.cpp.o" \
 "CMakeFiles/rpc.dir/rpcprovider.cpp.o" \
+"CMakeFiles/rpc.dir/zookeeperutil.cpp.o" \
 "CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.o"
 
 # External object files for target rpc
 rpc_EXTERNAL_OBJECTS =
 
+../lib/librpc.a: src/CMakeFiles/rpc.dir/logger.cpp.o
 ../lib/librpc.a: src/CMakeFiles/rpc.dir/rpcapplication.cpp.o
 ../lib/librpc.a: src/CMakeFiles/rpc.dir/rpcchannel.cpp.o
 ../lib/librpc.a: src/CMakeFiles/rpc.dir/rpccontroller.cpp.o
 ../lib/librpc.a: src/CMakeFiles/rpc.dir/rpcprovider.cpp.o
+../lib/librpc.a: src/CMakeFiles/rpc.dir/zookeeperutil.cpp.o
 ../lib/librpc.a: src/CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.o
 ../lib/librpc.a: src/CMakeFiles/rpc.dir/build.make
 ../lib/librpc.a: src/CMakeFiles/rpc.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking CXX static library ../../lib/librpc.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/smile/my_file/aprpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Linking CXX static library ../../lib/librpc.a"
 	cd /home/smile/my_file/aprpc/build/src && $(CMAKE_COMMAND) -P CMakeFiles/rpc.dir/cmake_clean_target.cmake
 	cd /home/smile/my_file/aprpc/build/src && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/rpc.dir/link.txt --verbose=$(VERBOSE)
 

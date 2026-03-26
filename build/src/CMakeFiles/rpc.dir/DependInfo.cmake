@@ -4,11 +4,13 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_CXX
+  "/home/smile/my_file/aprpc/src/logger.cpp" "/home/smile/my_file/aprpc/build/src/CMakeFiles/rpc.dir/logger.cpp.o"
   "/home/smile/my_file/aprpc/src/rpcapplication.cpp" "/home/smile/my_file/aprpc/build/src/CMakeFiles/rpc.dir/rpcapplication.cpp.o"
   "/home/smile/my_file/aprpc/src/rpcchannel.cpp" "/home/smile/my_file/aprpc/build/src/CMakeFiles/rpc.dir/rpcchannel.cpp.o"
   "/home/smile/my_file/aprpc/src/rpccontroller.cpp" "/home/smile/my_file/aprpc/build/src/CMakeFiles/rpc.dir/rpccontroller.cpp.o"
   "/home/smile/my_file/aprpc/src/rpcheader/rpcheader.pb.cc" "/home/smile/my_file/aprpc/build/src/CMakeFiles/rpc.dir/rpcheader/rpcheader.pb.cc.o"
   "/home/smile/my_file/aprpc/src/rpcprovider.cpp" "/home/smile/my_file/aprpc/build/src/CMakeFiles/rpc.dir/rpcprovider.cpp.o"
+  "/home/smile/my_file/aprpc/src/zookeeperutil.cpp" "/home/smile/my_file/aprpc/build/src/CMakeFiles/rpc.dir/zookeeperutil.cpp.o"
   )
 set(CMAKE_CXX_COMPILER_ID "GNU")
 

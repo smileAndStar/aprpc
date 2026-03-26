@@ -23,13 +23,14 @@ public:
     }
     
     bool Register(uint32_t id, std::string name, std::string pwd) {
+        std::cout << "UserService Local Register called!" << std::endl;
         std::cout << "id: " << id << " name: " << name << " pwd: " << pwd << std::endl;
         return true;
     }
 
     /* 实现基类的虚函数
      * 下面这些方法都是rpc框架调用的，用户不需要自己调用
-     * 1. caller   ===>   Login(LoginRequest)  => muduo =>   callee 
+     * 1. caller   ===>   Login(LoginRequest)  => asio =>   callee 
      * 2. callee   ===>    Login(LoginRequest)  => 交到下面重写的这个Login方法上了
      */
 

@@ -18,6 +18,7 @@ target_link_libraries(rpc PRIVATE
     protobuf    # protobuf 库
     yaml-cpp    # yaml-cpp 库
     muduo_net   # muduo 网络库
+    zookeeper_mt # zookeeper 客户端库
     muduo_base  # muduo 基础库
     pthread     # POSIX 线程库
 )

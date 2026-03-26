@@ -2,6 +2,8 @@
 #include "rpcapplication.h"
 #include <google/protobuf/descriptor.h>
 #include "rpcheader.pb.h"
+#include "logger.h"
+#include "zookeeperutil.h"
 
 void RpcProvider::NotifyService(google::protobuf::Service* service) {
     ServiceInfo serviceInfo;    // 创建服务信息对象
@@ -13,8 +15,8 @@ void RpcProvider::NotifyService(google::protobuf::Service* service) {
     // 获取服务对象service的方法的数量
     int methodCnt = pserviceDesc->method_count();
 
-    std::cout << "NotifyService: service_name=" << service_name << std::endl;
-
+    LOG_INFO("NotifyService: service_name=%s", service_name.c_str());
+    
     // 填充serviceInfo对象
     serviceInfo.service_ = service;         // 保存服务对象本身
     for (int i = 0; i < methodCnt; ++i) {   // 遍历服务对象的所有方法
@@ -22,7 +24,7 @@ void RpcProvider::NotifyService(google::protobuf::Service* service) {
         const google::protobuf::MethodDescriptor *pmethodDesc = pserviceDesc->method(i);
         std::string method_name = pmethodDesc->name();
 
-        std::cout << "NotifyService: method_name=" << method_name << std::endl;
+        LOG_INFO("NotifyService: method_name=%s", method_name.c_str());
 
         // 存储服务方法名称和方法描述符的映射
         serviceInfo.methodMap_.insert({method_name, pmethodDesc});
@@ -46,7 +48,7 @@ void RpcProvider::Run() {
             ) 
         );
 
-        std::cout << "RpcProvider::Run rpc server start at " << ip << ":" << port << std::endl;
+        LOG_INFO("RpcProvider::Run rpc server start at %s:%d", ip.c_str(), port);
 
         // == 异步接受连接 == 
         /**
@@ -80,7 +82,35 @@ void RpcProvider::Run() {
         };
         do_accept(); // 在启动线程前调用一次，开始接受连接
 
+
+        // 把当前rpc节点上要发布的服务全部注册到zk上面，让rpc client可以从zk上发现服务
+        // session timeout   30s     zkclient 网络I/O线程  1/3 * timeout 时间发送ping心跳
+        ZkClient zkCli;
+        zkCli.Start();
+        // service_name为永久性节点    method_name为临时性节点
+        for (auto &sp : serviceMap_) 
+        {
+            // /service_name   /UserServiceRpc
+            std::string service_path = "/" + sp.first;
+            zkCli.Create(service_path.c_str(), nullptr, 0);
+            for (auto &mp : sp.second.methodMap_) 
+            {
+                // /service_name/method_name   /UserServiceRpc/Login
+                std::string method_path = service_path + "/" + mp.first;    // 根据服务名称和方法名称构建zk路径
+                char method_path_data[128] = {0};
+                sprintf(method_path_data, "%s:%d", ip.c_str(), port);   // 在zk节点上存储rpc服务的网络地址，格式：ip:port
+                // ZOO_EPHEMERAL    临时性节点
+                zkCli.Create(method_path.c_str(), method_path_data, strlen(method_path_data), ZOO_EPHEMERAL);
+            }
+        }
+
         // === 线程池 ===
+        /* 为什么几个线程能支撑上万个连接？
+         * 核心原因: 线程不被 I/O 阻塞
+         * 线程只在做两件事：
+            1.等 epoll
+            2.执行 handler（业务逻辑）
+         */
         std::vector<std::thread> threads;
         for (int i = 0; i < 6; ++i) {
             threads.emplace_back([this]() { io_context_.run(); });  // 运行io_context_.run(), 处理异步事件
@@ -90,37 +120,82 @@ void RpcProvider::Run() {
             thread.join();  // 等待所有线程完成
         }
     } catch (std::exception& e) {
-        std::cerr << "RpcProvider::Run exception: " << e.what() << std::endl;
+        LOG_ERR("RpcProvider::Run exception: %s", e.what());
     }
 }
 
 // Session实现
 void RpcProvider::Session::Start() {
-    DoRead();
+    DoRead(); 
 }
 
 void RpcProvider::Session::DoRead() {
     std::shared_ptr<RpcProvider::Session> self(shared_from_this());  // 获取shared_ptr指向当前对象的指针，保证对象在异步操作期间存活！
-    buffer_.resize(4096);  // 调整缓冲区大小
+    buffer_.resize(4096);  // 调整单次读取的临时缓冲区大小
 
     socket_.async_read_some(    // 异步读取数据，不会阻塞，当有数据到达时调用回调函数
-        boost::asio::buffer(buffer_),
+        boost::asio::buffer(buffer_), 
         [this, self](boost::system::error_code ec, std::size_t length) {
             if (!ec) {
-                std::string request_data(buffer_.data(), length);   
-                provider_.HandleRequest(self, request_data); // 处理请求
+                recv_buffer_.append(buffer_.data(), length);  // 追加到持久化缓冲区
+                TryParseAndHandle();                          // 尝试解析完整帧
             }
         }
     );
 }
 
+void RpcProvider::Session::TryParseAndHandle() {
+    // 循环处理：一次 recv 可能包含多条完整消息（粘包），也可能不足一条（半包）
+    while (true) {
+        // === 第一步：判断是否收到了完整的 4 字节 header_size ===
+        if (recv_buffer_.size() < 4) {
+            DoRead();  // 数据不足，继续等待
+            return;
+        }
+
+        uint32_t header_size = 0;
+        recv_buffer_.copy((char*)&header_size, 4, 0);
+        header_size = ntohl(header_size);  // 网络字节序转主机字节序
+
+        // === 第二步：判断是否收到了完整的 header ===
+        if (recv_buffer_.size() < 4 + header_size) {
+            DoRead();  // header 数据不足，继续等待
+            return;
+        }
+
+        // 反序列化 header，取出 args_size
+        std::string rpc_header_str = recv_buffer_.substr(4, header_size);
+        rpcheader::RpcHeader rpcHeader;
+        if (!rpcHeader.ParseFromString(rpc_header_str)) {
+            LOG_ERR("Session::TryParseAndHandle parse rpc_header_str error, close connection!");
+            recv_buffer_.clear();
+            return;  // 协议错误，丢弃数据，连接将在 Session 析构时关闭
+        }
+        uint32_t args_size = rpcHeader.args_size();
+
+        // === 第三步：判断是否收到了完整的 args ===
+        if (recv_buffer_.size() < 4 + header_size + args_size) {
+            DoRead();  // args 数据不足，继续等待
+            return;
+        }
+
+        // === 第四步：取出完整的一帧数据，从缓冲区移除 ===
+        std::string request_data = recv_buffer_.substr(0, 4 + header_size + args_size);
+        recv_buffer_.erase(0, 4 + header_size + args_size);  // 已消费，移除
+
+        provider_.HandleRequest(shared_from_this(), request_data);
+        // 继续循环，处理 recv_buffer_ 中可能残留的下一条完整消息（解决粘包）
+    }
+}
+
 void RpcProvider::Session::DoWrite(const std::string& response) {
     std::shared_ptr<RpcProvider::Session> self(shared_from_this());  // 获取shared_ptr指向当前对象的指针，保证对象在异步操作期间存活！
 
+    // 异步写入数据，不会阻塞，当数据发送完成时调用回调函数
     boost::asio::async_write(
         socket_,
         boost::asio::buffer(response),
-        [this, self](boost::system::error_code ec, std::size_t /*length*/) {
+        [this, self](boost::system::error_code ec, std::size_t /*length*/) {    // 发送完成回调
             if (!ec) {
                 // 关闭连接
                 boost::system::error_code ignored_ec;   // 忽略错误码
@@ -157,11 +232,9 @@ void RpcProvider::HandleRequest(std::shared_ptr<Session> session, const std::str
         // 获取args_str参数字符串
         std::string args_str = request_data.substr(4 + header_size, args_size);
 
-        std::cout << "RpcProvider::HandleRequest receive rpc request: "
-                  << "service_name=" << service_name
-                  << " method_name=" << method_name
-                  << " args_size=" << args_size 
-                  << " args:" << args_str << std::endl;
+        LOG_INFO("RpcProvider::HandleRequest receive rpc request: \
+                 service_name=%s method_name=%s args_size=%u",
+                 service_name.c_str(), method_name.c_str(), args_size);
 
         /**
          * @note 第二步：根据 rpc 请求，查找注册的服务对象以及相应的方法
@@ -169,13 +242,13 @@ void RpcProvider::HandleRequest(std::shared_ptr<Session> session, const std::str
         // 获取service和method
         auto sit = serviceMap_.find(service_name); // 查找服务是否存在
         if (sit == serviceMap_.end()) {
-            std::cerr << "RpcProvider::HandleRequest service " << service_name << " not found!" << std::endl;
+            LOG_ERR("RpcProvider::HandleRequest service %s not found!", service_name.c_str());
             return;
         }
         ServiceInfo serviceInfo = sit->second; // 获取服务信息结构体
         auto mit = serviceInfo.methodMap_.find(method_name); // 查找方法是否存在
         if (mit == serviceInfo.methodMap_.end()) {
-            std::cerr << "RpcProvider::HandleRequest method " << method_name << " not found!" << std::endl;
+            LOG_ERR("RpcProvider::HandleRequest method %s not found!", method_name.c_str());
             return;
         }
 
@@ -190,7 +263,7 @@ void RpcProvider::HandleRequest(std::shared_ptr<Session> session, const std::str
         // 创建请求request和响应response消息对象
         google::protobuf::Message *request = service->GetRequestPrototype(method).New(); // 创建请求对象
         if (!request->ParseFromString(args_str)) {  // 反序列化请求参数
-            std::cerr << "RpcProvider::HandleRequest parse request args_str error!" << std::endl;
+            LOG_ERR("RpcProvider::HandleRequest parse args_str error!");
             delete request;
             return;
         }
@@ -213,7 +286,7 @@ void RpcProvider::HandleRequest(std::shared_ptr<Session> session, const std::str
         // 释放request内存
         delete request;
     } else {
-        std::cerr << "RpcProvider::HandleRequest parse rpc_header_str error!" << std::endl;
+        LOG_ERR("RpcProvider::HandleRequest parse rpc_header_str error!");
         return;
      }
 }
@@ -233,7 +306,8 @@ void RpcProvider::SendRpcResponse(std::shared_ptr<Session> session, google::prot
     if (response->SerializeToString(&response_str)) {
         uint32_t response_len = htonl(response_str.size());  // 主机字节序转网络字节序
         
-        // 组装发送数据：4字节长度 + 响应消息体
+        // 组装发送数据：由于是异步发送(async_write)，底层 buffer 引用的内存必须存活到发送完毕
+        // 拼接为一个完整 std::string，通过值传递或移动语义保持其生命周期
         std::string send_buf;
         send_buf.append((char*)&response_len, 4);
         send_buf.append(response_str);
@@ -241,7 +315,7 @@ void RpcProvider::SendRpcResponse(std::shared_ptr<Session> session, google::prot
         // 发送响应数据
         session->DoWrite(send_buf);
     } else {
-        std::cerr << "RpcProvider::SendRpcResponse serialize response error!" << std::endl;
+        LOG_ERR("RpcProvider::SendRpcResponse serialize response error!");
     }
     // 释放response内存
     delete response;

@@ -10,4 +10,5 @@ example/caller/CMakeFiles/consumer.dir/calluserservice.cpp.o
  ../src/include/rpcchannel.h
  ../src/include/rpcconfig.h
  ../src/include/rpccontroller.h
+ ../src/rpcheader/rpcheader.pb.h
  /home/smile/my_file/aprpc/example/caller/calluserservice.cpp

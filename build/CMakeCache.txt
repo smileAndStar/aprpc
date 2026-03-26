@@ -216,7 +216,7 @@ aprpc_BINARY_DIR:STATIC=/home/smile/my_file/aprpc/build
 aprpc_SOURCE_DIR:STATIC=/home/smile/my_file/aprpc
 
 //Dependencies for the target
-rpc_LIB_DEPENDS:STATIC=general;protobuf;general;yaml-cpp;general;muduo_net;general;muduo_base;general;pthread;
+rpc_LIB_DEPENDS:STATIC=general;protobuf;general;yaml-cpp;general;muduo_net;general;zookeeper_mt;general;muduo_base;general;pthread;
 
 //The directory containing a CMake configuration file for yaml-cpp.
 yaml-cpp_DIR:PATH=/usr/lib/x86_64-linux-gnu/cmake/yaml-cpp

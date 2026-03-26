@@ -9,5 +9,6 @@ example/caller/CMakeFiles/consumer.dir/calluserservice.cpp.o: ../src/include/rpc
 example/caller/CMakeFiles/consumer.dir/calluserservice.cpp.o: ../src/include/rpcchannel.h
 example/caller/CMakeFiles/consumer.dir/calluserservice.cpp.o: ../src/include/rpcconfig.h
 example/caller/CMakeFiles/consumer.dir/calluserservice.cpp.o: ../src/include/rpccontroller.h
+example/caller/CMakeFiles/consumer.dir/calluserservice.cpp.o: ../src/rpcheader/rpcheader.pb.h
 example/caller/CMakeFiles/consumer.dir/calluserservice.cpp.o: ../example/caller/calluserservice.cpp
 

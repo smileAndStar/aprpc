@@ -14,6 +14,7 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
   "../src/include"
   "../example"
   "../example/caller/../proto_gen"
+  "../src/rpcheader"
   )
 
 # Targets to which this target links.

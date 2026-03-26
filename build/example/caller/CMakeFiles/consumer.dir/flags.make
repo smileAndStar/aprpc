@@ -6,5 +6,5 @@ CXX_FLAGS =  -Wall -Wextra -Wno-unused-parameter   -std=gnu++17
 
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/smile/my_file/aprpc/src/include -I/home/smile/my_file/aprpc/example -I/home/smile/my_file/aprpc/example/caller/../proto_gen 
+CXX_INCLUDES = -I/home/smile/my_file/aprpc/src/include -I/home/smile/my_file/aprpc/example -I/home/smile/my_file/aprpc/example/caller/../proto_gen -I/home/smile/my_file/aprpc/src/rpcheader 
 

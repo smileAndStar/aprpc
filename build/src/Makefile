@@ -125,6 +125,33 @@ rpc/fast:
 	cd /home/smile/my_file/aprpc/build && $(MAKE) -f src/CMakeFiles/rpc.dir/build.make src/CMakeFiles/rpc.dir/build
 .PHONY : rpc/fast
 
+logger.o: logger.cpp.o
+
+.PHONY : logger.o
+
+# target to build an object file
+logger.cpp.o:
+	cd /home/smile/my_file/aprpc/build && $(MAKE) -f src/CMakeFiles/rpc.dir/build.make src/CMakeFiles/rpc.dir/logger.cpp.o
+.PHONY : logger.cpp.o
+
+logger.i: logger.cpp.i
+
+.PHONY : logger.i
+
+# target to preprocess a source file
+logger.cpp.i:
+	cd /home/smile/my_file/aprpc/build && $(MAKE) -f src/CMakeFiles/rpc.dir/build.make src/CMakeFiles/rpc.dir/logger.cpp.i
+.PHONY : logger.cpp.i
+
+logger.s: logger.cpp.s
+
+.PHONY : logger.s
+
+# target to generate assembly for a file
+logger.cpp.s:
+	cd /home/smile/my_file/aprpc/build && $(MAKE) -f src/CMakeFiles/rpc.dir/build.make src/CMakeFiles/rpc.dir/logger.cpp.s
+.PHONY : logger.cpp.s
+
 rpcapplication.o: rpcapplication.cpp.o
 
 .PHONY : rpcapplication.o
@@ -260,6 +287,33 @@ rpcprovider.cpp.s:
 	cd /home/smile/my_file/aprpc/build && $(MAKE) -f src/CMakeFiles/rpc.dir/build.make src/CMakeFiles/rpc.dir/rpcprovider.cpp.s
 .PHONY : rpcprovider.cpp.s
 
+zookeeperutil.o: zookeeperutil.cpp.o
+
+.PHONY : zookeeperutil.o
+
+# target to build an object file
+zookeeperutil.cpp.o:
+	cd /home/smile/my_file/aprpc/build && $(MAKE) -f src/CMakeFiles/rpc.dir/build.make src/CMakeFiles/rpc.dir/zookeeperutil.cpp.o
+.PHONY : zookeeperutil.cpp.o
+
+zookeeperutil.i: zookeeperutil.cpp.i
+
+.PHONY : zookeeperutil.i
+
+# target to preprocess a source file
+zookeeperutil.cpp.i:
+	cd /home/smile/my_file/aprpc/build && $(MAKE) -f src/CMakeFiles/rpc.dir/build.make src/CMakeFiles/rpc.dir/zookeeperutil.cpp.i
+.PHONY : zookeeperutil.cpp.i
+
+zookeeperutil.s: zookeeperutil.cpp.s
+
+.PHONY : zookeeperutil.s
+
+# target to generate assembly for a file
+zookeeperutil.cpp.s:
+	cd /home/smile/my_file/aprpc/build && $(MAKE) -f src/CMakeFiles/rpc.dir/build.make src/CMakeFiles/rpc.dir/zookeeperutil.cpp.s
+.PHONY : zookeeperutil.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -269,6 +323,9 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
 	@echo "... rpc"
+	@echo "... logger.o"
+	@echo "... logger.i"
+	@echo "... logger.s"
 	@echo "... rpcapplication.o"
 	@echo "... rpcapplication.i"
 	@echo "... rpcapplication.s"
@@ -284,6 +341,9 @@ help:
 	@echo "... rpcprovider.o"
 	@echo "... rpcprovider.i"
 	@echo "... rpcprovider.s"
+	@echo "... zookeeperutil.o"
+	@echo "... zookeeperutil.i"
+	@echo "... zookeeperutil.s"
 .PHONY : help
 
 

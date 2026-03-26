@@ -1,5 +1,12 @@
-# 构建文件
 build/
-
-# 可执行文件
 bin/
+.vscode/
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+*.o
+*.a
+*.so
