@@ -27,6 +27,8 @@ public:
 
     /*
      * @brief 根据参数指定的znode节点路径，获取znode节点的值
+     * @param path znode节点路径
+     * @return znode节点数据
      **/
     std::string GetData(const char *path);
 
