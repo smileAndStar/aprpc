@@ -112,3 +112,50 @@
 - **Boost.Asio**: 用于实现异步、非阻塞的网络 I/O，支持高并发。
 - **多线程**: 服务端使用线程池处理 I/O 事件，提高吞吐量。
 - **自定义协议**: 解决 TCP 传输中的边界问题。
+
+## 6. 改进归档
+
+- 长连接升级方案归档: [docs/long-connection-upgrade.md](docs/long-connection-upgrade.md)
+- 客户端异步回调改造归档: [docs/client-async-callback-upgrade.md](docs/client-async-callback-upgrade.md)
+
+## 7. 日志性能测试
+
+已新增日志压测程序 `logger_perf`，用于评估不同并发线程下日志系统是否出现瓶颈。
+当前日志系统支持两种落盘后端：
+
+- `mmap`：基于内存映射的追加写
+- `sequential`：类似 muduo `AppendFile` 的普通顺序追加写
+
+框架配置中可选：
+
+```yaml
+logger:
+  write_mode: "mmap"   # mmap | sequential
+```
+
+构建后可执行：
+
+```bash
+./bin/logger_perf [threads] [duration_seconds] [message_size] [writer_mode]
+```
+
+参数说明：
+- `threads`: 生产日志的线程数，默认 `8`
+- `duration_seconds`: 压测持续时间（秒），默认 `10`
+- `message_size`: 每条日志消息字节数，默认 `128`
+- `writer_mode`: 日志落盘后端，支持 `mmap` / `sequential`，默认 `mmap`
+
+示例：
+
+```bash
+./bin/logger_perf 8 10 128 mmap
+./bin/logger_perf 8 10 128 sequential
+./bin/logger_perf 16 10 128 sequential
+```
+
+输出指标：
+- `logs_per_s`: 每秒日志调用次数（生产速率）
+- `avg_log_call_us`: 单次 `Logger::Log` 平均调用耗时
+- `max_log_call_us`: 单次 `Logger::Log` 最大调用耗时
+
+当线程数升高后 `logs_per_s` 不再增长，且 `avg_log_call_us` 持续上升时，可判定出现明显锁竞争/日志瓶颈。

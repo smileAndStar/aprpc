@@ -1,6 +1,8 @@
 #include <iostream>
+#include <exception>
 #include <unistd.h>
 #include "rpcapplication.h"
+#include "logger.h"
 
 RpcConfig RpcApplication::m_config;
 
@@ -43,12 +45,24 @@ void RpcApplication::Init(int argc, char* argv[]) {
 
     // 加载配置文件
     m_config.LoadConfigFile(config_file);
-    // 检查配置文件是否加载成功
-     
+    
+    // 配置加载完成后再初始化日志系统，这样才能根据配置切换落盘后端
+    Logger& logger = Logger::GetInstance();
+    try {
+        std::string write_mode = m_config.Load<std::string>("logger.write_mode");
+        if (!logger.SetWriteModeByName(write_mode)) {
+            std::cerr << "Warning: invalid logger.write_mode '" << write_mode
+                      << "', fallback to mmap" << std::endl;
+        }
+    } catch (const std::exception&) {
+        // logger.write_mode 是可选配置，缺省时保持默认 mmap
+    }
+
     std::cout << "RPC Server will start at " << m_config.Load<std::string>("rpc.server_ip")
                                       << ":" << m_config.Load<int>("rpc.server_port") << "\n"
                  << "ZooKeeper address is " << m_config.Load<std::string>("zookeeper.server_ip") 
-                                      << ":" << m_config.Load<int>("zookeeper.server_port") << std::endl;
+                                      << ":" << m_config.Load<int>("zookeeper.server_port") << "\n"
+                 << "Logger write mode is " << logger.GetWriteModeName() << std::endl;
 }
     
 RpcApplication& RpcApplication::GetInstance() {

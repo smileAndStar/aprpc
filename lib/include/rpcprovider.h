@@ -12,7 +12,8 @@
 class RpcProvider {
     public:
         /**
-         * @brief NotifyService 发布rpc服务接口
+         * @brief NotifyService 发布rpc服务接口,函数中会将服务对象
+         *        和方法信息存储到serviceMap_中
          * @param service 需要发布的服务对象
          */
         void NotifyService(google::protobuf::Service* service);
@@ -58,7 +59,7 @@ class RpcProvider {
                  * @brief 写入数据
                  * @param response 响应数据
                  */
-                void DoWrite(const std::string& response);
+                void DoWrite(std::string response);
 
             private:
                 /**
@@ -80,9 +81,11 @@ class RpcProvider {
         /**
          * @brief 处理请求
          * @param session 会话对象
-         * @param request_data 请求数据
+         * @param service_name 服务名称
+         * @param method_name 方法名称
+         * @param args_str 序列化后的参数数据
          */
-        void HandleRequest(std::shared_ptr<Session> session, const std::string& request_data);
+        void HandleRequest(std::shared_ptr<Session> session, const std::string& service_name, const std::string& method_name, const std::string& args_str);
 
         /**
          * @brief 发送RPC响应（用于Closure回调）

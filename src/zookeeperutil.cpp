@@ -7,8 +7,8 @@
 // 触发条件：zkclient和zkserver连接成功后，zkserver会给zkclient发送一个通知，触发这个观察器的回调函数
 void global_watcher(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx)
 {   
-    // type 表示回调的消息类型，state 表示zkclient和zkserver连接状态 path 表示zkserver给zkclient发送通知的znode节点路径，\
-    watcherCtx 表示用户自定义的上下文对象，这里是一个信号量指针
+    // type 表示回调的消息类型，state 表示zkclient和zkserver连接状态 path 表示zkserver给zkclient发送通知的znode节点路径，
+    // watcherCtx 表示用户自定义的上下文对象，这里是一个信号量指针
     // 当前只处理zkclient和zkserver连接成功的通知，其他类型的通知暂不处理
     if (type == ZOO_SESSION_EVENT)  // 回调的消息类型是和会话相关的消息类型
     {
@@ -43,8 +43,8 @@ void ZkClient::Start()
     2. 网络I/O线程  pthread_create  poll
     3. watcher回调线程 pthread_create
     */
-    // zookeeper_init()函数会创建一个新的线程来处理网络I/O和watcher回调，所以这个函数是非阻塞的，\
-    调用后会立即返回，返回值是一个zhandle_t类型的指针，表示zkclient的句柄，如果连接失败则返回nullptr
+    // zookeeper_init()函数会创建一个新的线程来处理网络I/O和watcher回调，所以这个函数是非阻塞的，
+    // 调用后会立即返回，返回值是一个zhandle_t类型的指针，表示zkclient的句柄，如果连接失败则返回nullptr
     m_zhandle = zookeeper_init(connstr.c_str(), global_watcher, 30000, nullptr, nullptr, 0);
     if (nullptr == m_zhandle) 
     {

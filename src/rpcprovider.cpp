@@ -45,7 +45,7 @@ void RpcProvider::Run() {
         boost::asio::ip::tcp::acceptor acceptor(
             io_context_, boost::asio::ip::tcp::endpoint(
                 boost::asio::ip::make_address(ip), port
-            ) 
+            )
         );
 
         LOG_INFO("RpcProvider::Run rpc server start at %s:%d", ip.c_str(), port);
@@ -112,7 +112,7 @@ void RpcProvider::Run() {
             2.执行 handler（业务逻辑）
          */
         std::vector<std::thread> threads;
-        for (int i = 0; i < 6; ++i) {
+        for (int i = 0; i < 8; ++i) {
             threads.emplace_back([this]() { io_context_.run(); });  // 运行io_context_.run(), 处理异步事件
         }
 
@@ -120,6 +120,7 @@ void RpcProvider::Run() {
             thread.join();  // 等待所有线程完成
         }
     } catch (std::exception& e) {
+        std::cerr << "RpcProvider::Run exception: " << e.what() << std::endl;
         LOG_ERR("RpcProvider::Run exception: %s", e.what());
     }
 }
@@ -133,6 +134,7 @@ void RpcProvider::Session::DoRead() {
     std::shared_ptr<RpcProvider::Session> self(shared_from_this());  // 获取shared_ptr指向当前对象的指针，保证对象在异步操作期间存活！
     buffer_.resize(4096);  // 调整单次读取的临时缓冲区大小
 
+    // 注册异步读取回调函数，当有数据到达时调用该回调函数
     socket_.async_read_some(    // 异步读取数据，不会阻塞，当有数据到达时调用回调函数
         boost::asio::buffer(buffer_), 
         [this, self](boost::system::error_code ec, std::size_t length) {
@@ -155,7 +157,7 @@ void RpcProvider::Session::TryParseAndHandle() {
 
         uint32_t header_size = 0;
         recv_buffer_.copy((char*)&header_size, 4, 0);
-        header_size = ntohl(header_size);  // 网络字节序转主机字节序
+        header_size = ntohl(header_size);  // 网络字节序转主机字节序，网络都是大端序，主机可能是小端序
 
         // === 第二步：判断是否收到了完整的 header ===
         if (recv_buffer_.size() < 4 + header_size) {
@@ -180,22 +182,23 @@ void RpcProvider::Session::TryParseAndHandle() {
         }
 
         // === 第四步：取出完整的一帧数据，从缓冲区移除 ===
-        std::string request_data = recv_buffer_.substr(0, 4 + header_size + args_size);
+        std::string args_str = recv_buffer_.substr(4 + header_size, args_size);
         recv_buffer_.erase(0, 4 + header_size + args_size);  // 已消费，移除
 
-        provider_.HandleRequest(shared_from_this(), request_data);
+        provider_.HandleRequest(shared_from_this(), rpcHeader.service_name(), rpcHeader.method_name(), args_str);
         // 继续循环，处理 recv_buffer_ 中可能残留的下一条完整消息（解决粘包）
     }
 }
 
-void RpcProvider::Session::DoWrite(const std::string& response) {
+void RpcProvider::Session::DoWrite(std::string response) {
     std::shared_ptr<RpcProvider::Session> self(shared_from_this());  // 获取shared_ptr指向当前对象的指针，保证对象在异步操作期间存活！
+    std::shared_ptr<std::string> write_buffer = std::make_shared<std::string>(std::move(response)); // 通过值传递或移动语义保持发送数据的生命周期，直到发送完成
 
     // 异步写入数据，不会阻塞，当数据发送完成时调用回调函数
     boost::asio::async_write(
         socket_,
-        boost::asio::buffer(response),
-        [this, self](boost::system::error_code ec, std::size_t /*length*/) {    // 发送完成回调
+        boost::asio::buffer(*write_buffer),
+        [this, self, write_buffer](boost::system::error_code ec, std::size_t /*length*/) {    // 发送完成回调
             if (!ec) {
                 // 关闭连接
                 boost::system::error_code ignored_ec;   // 忽略错误码
@@ -205,90 +208,60 @@ void RpcProvider::Session::DoWrite(const std::string& response) {
     );
 }
 
-void RpcProvider::HandleRequest(std::shared_ptr<Session> session, const std::string& request_data) {
+void RpcProvider::HandleRequest(std::shared_ptr<Session> session, const std::string& service_name, const std::string& method_name, const std::string& args_str) {
+    LOG_INFO("RpcProvider::HandleRequest receive rpc request: \
+             service_name=%s method_name=%s args_size=%zu",
+             service_name.c_str(), method_name.c_str(), args_str.size());
+
     /**
-     * @note 第一步：读取远程 rpc调用请求的字符流
-     * 
-     * 字符流包含的信息：
-     * 1.数据头的长度 header_size
-     * 2.数据头 rpc_header_str
-     * 3.请求参数 args_str
+     * @note 根据 rpc 请求，查找注册的服务对象以及相应的方法
      */
-
-    // 从字符流中读取数据头的长度信息
-    uint32_t header_size = 0;
-    request_data.copy((char*)&header_size, 4, 0);
-    header_size = ntohl(header_size);  // 网络字节序转主机字节序
-
-    // 根据header_size读取数据头字符串,并反序列化数据
-    std::string rpc_header_str = request_data.substr(4, header_size);
-    rpcheader::RpcHeader rpcHeader;
-    if (rpcHeader.ParseFromString(rpc_header_str)) {   // 数据头反序列化成功
-        // 获取反序列化结果
-        std::string service_name = rpcHeader.service_name();   // 获取服务名称
-        std::string method_name = rpcHeader.method_name();     // 获取方法名称
-        uint32_t args_size = rpcHeader.args_size();           // 获取参数长度
-
-        // 获取args_str参数字符串
-        std::string args_str = request_data.substr(4 + header_size, args_size);
-
-        LOG_INFO("RpcProvider::HandleRequest receive rpc request: \
-                 service_name=%s method_name=%s args_size=%u",
-                 service_name.c_str(), method_name.c_str(), args_size);
-
-        /**
-         * @note 第二步：根据 rpc 请求，查找注册的服务对象以及相应的方法
-         */
-        // 获取service和method
-        auto sit = serviceMap_.find(service_name); // 查找服务是否存在
-        if (sit == serviceMap_.end()) {
-            LOG_ERR("RpcProvider::HandleRequest service %s not found!", service_name.c_str());
-            return;
-        }
-        ServiceInfo serviceInfo = sit->second; // 获取服务信息结构体
-        auto mit = serviceInfo.methodMap_.find(method_name); // 查找方法是否存在
-        if (mit == serviceInfo.methodMap_.end()) {
-            LOG_ERR("RpcProvider::HandleRequest method %s not found!", method_name.c_str());
-            return;
-        }
-
-        // 服务对象
-        google::protobuf::Service* service = serviceInfo.service_;
-        // 服务对象的方法描述符
-        const google::protobuf::MethodDescriptor* method = mit->second;
-
-        /**
-         * @note 第三步：反序列化参数，调用方法，获取响应结果
-         */
-        // 创建请求request和响应response消息对象
-        google::protobuf::Message *request = service->GetRequestPrototype(method).New(); // 创建请求对象
-        if (!request->ParseFromString(args_str)) {  // 反序列化请求参数
-            LOG_ERR("RpcProvider::HandleRequest parse args_str error!");
-            delete request;
-            return;
-        }
-        google::protobuf::Message *response = service->GetResponsePrototype(method).New();  // 创建响应对象
-
-        // 创建回调对象，用于处理rpc方法调用完成后的响应发送
-        google::protobuf::Closure* done = google::protobuf::NewCallback<RpcProvider,
-                                                                         std::shared_ptr<Session>,
-                                                                         google::protobuf::Message*>(
-            this,
-            &RpcProvider::SendRpcResponse,
-            session,
-            response
-        );
-
-        // === 在框架上根据远程 rpc 调用请求，调用服务对象的方法 === 
-        // protobuf会根据method描述符，调用对应的服务方法,并传入request、response、done参数,最终填充好response对象，并调用done回调
-        service->CallMethod(method, nullptr, request, response, done);
-        
-        // 释放request内存
-        delete request;
-    } else {
-        LOG_ERR("RpcProvider::HandleRequest parse rpc_header_str error!");
+    // 获取service和method
+    auto sit = serviceMap_.find(service_name); // 查找服务是否存在
+    if (sit == serviceMap_.end()) {
+        LOG_ERR("RpcProvider::HandleRequest service %s not found!", service_name.c_str());
         return;
-     }
+    }
+    ServiceInfo serviceInfo = sit->second; // 获取服务信息结构体
+    auto mit = serviceInfo.methodMap_.find(method_name); // 查找方法是否存在
+    if (mit == serviceInfo.methodMap_.end()) {
+        LOG_ERR("RpcProvider::HandleRequest method %s not found!", method_name.c_str());
+        return;
+    }
+
+    // 服务对象
+    google::protobuf::Service* service = serviceInfo.service_;
+    // 服务对象的方法描述符
+    const google::protobuf::MethodDescriptor* method = mit->second;
+
+    /**
+     * @note 反序列化参数，调用方法，获取响应结果
+     */
+    // 创建请求request和响应response消息对象
+    google::protobuf::Message *request = service->GetRequestPrototype(method).New(); // 创建请求对象
+    if (!request->ParseFromString(args_str)) {  // 反序列化请求参数
+        LOG_ERR("RpcProvider::HandleRequest parse args_str error!");
+        delete request;
+        return;
+    }
+    google::protobuf::Message *response = service->GetResponsePrototype(method).New();  // 创建响应对象
+
+    // 创建回调对象，用于处理rpc方法调用完成后的响应发送
+    google::protobuf::Closure* done = google::protobuf::NewCallback<RpcProvider,
+                                                                     std::shared_ptr<Session>,
+                                                                     google::protobuf::Message*>(
+        this,
+        &RpcProvider::SendRpcResponse,
+        session,
+        response
+    );
+
+    // === 在框架上根据远程 rpc 调用请求，调用服务对象的方法 === 
+    // protobuf会根据method描述符，调用对应的服务方法,并传入request、response、done参数,最终填充好response对象，并调用done回调
+    service->CallMethod(method, nullptr, request, response, done);
+    
+    // 释放request内存
+    delete request;
 }
 
 // rpc方法调用完成后的回调函数
@@ -313,7 +286,7 @@ void RpcProvider::SendRpcResponse(std::shared_ptr<Session> session, google::prot
         send_buf.append(response_str);
         
         // 发送响应数据
-        session->DoWrite(send_buf);
+        session->DoWrite(std::move(send_buf));
     } else {
         LOG_ERR("RpcProvider::SendRpcResponse serialize response error!");
     }

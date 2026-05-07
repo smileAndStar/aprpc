@@ -6,6 +6,7 @@
 #include "zookeeperutil.h"
 #include <boost/asio.hpp>
 
+// RpcChannel实现,当客户端 Stub 对象调用 rpc 方法时(见 example的calluserservice.cpp)，框架会触发该函数的调用
 void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
                            google::protobuf::RpcController* controller,
                            const google::protobuf::Message* request,
@@ -70,13 +71,17 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
     std::string host_data = zkCli.GetData(method_path.c_str());
     if (host_data == "")
     {
-        controller->SetFailed(method_path + " is not exist!");
+        if (controller != nullptr) {
+            controller->SetFailed(method_path + " is not exist!");
+        }
         return;
     }
     int idx = host_data.find(":");
     if (idx == -1)
     {
-        controller->SetFailed(method_path + " address is invalid!");
+        if (controller != nullptr) {
+            controller->SetFailed(method_path + " address is invalid!");
+        }
         return;
     }
     std::string ip = host_data.substr(0, idx);

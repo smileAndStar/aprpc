@@ -5,3 +5,7 @@ rpc:
 zookeeper:
   server_ip: "127.0.0.1"
   server_port: 2181
+
+logger:
+  # 日志落盘模式，mmap | sequential
+  write_mode: "sequential"

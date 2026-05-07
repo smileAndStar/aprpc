@@ -1,0 +1,70 @@
+CASE threads=1 duration=8 size=128
+logger_perf start: threads=1, duration=8s, message_size=128 bytes
+elapsed_s=8.00, total_logs=1020955, logs_per_s=127614.40, avg_log_call_us=4.38, max_log_call_us=4143.86
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=2 duration=8 size=128
+logger_perf start: threads=2, duration=8s, message_size=128 bytes
+elapsed_s=8.00, total_logs=1521644, logs_per_s=190197.19, avg_log_call_us=7.20, max_log_call_us=6778.23
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=4 duration=8 size=128
+logger_perf start: threads=4, duration=8s, message_size=128 bytes
+elapsed_s=8.00, total_logs=1661628, logs_per_s=207692.11, avg_log_call_us=15.72, max_log_call_us=11032.70
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=8 duration=8 size=128
+logger_perf start: threads=8, duration=8s, message_size=128 bytes
+elapsed_s=8.00, total_logs=2091555, logs_per_s=261335.50, avg_log_call_us=26.84, max_log_call_us=8852.26
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=16 duration=8 size=128
+logger_perf start: threads=16, duration=8s, message_size=128 bytes
+elapsed_s=8.00, total_logs=2254174, logs_per_s=281684.34, avg_log_call_us=52.74, max_log_call_us=10003.84
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=32 duration=8 size=128
+logger_perf start: threads=32, duration=8s, message_size=128 bytes
+elapsed_s=8.00, total_logs=2363570, logs_per_s=295368.68, avg_log_call_us=103.87, max_log_call_us=18970.01
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=64 duration=8 size=128
+logger_perf start: threads=64, duration=8s, message_size=128 bytes
+elapsed_s=8.00, total_logs=2337217, logs_per_s=291979.81, avg_log_call_us=213.41, max_log_call_us=40059.07
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=1 duration=8 size=1024
+logger_perf start: threads=1, duration=8s, message_size=1024 bytes
+elapsed_s=8.00, total_logs=789851, logs_per_s=98714.19, avg_log_call_us=6.82, max_log_call_us=4412.99
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=2 duration=8 size=1024
+logger_perf start: threads=2, duration=8s, message_size=1024 bytes
+elapsed_s=8.00, total_logs=787160, logs_per_s=98385.99, avg_log_call_us=16.94, max_log_call_us=7261.47
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=4 duration=8 size=1024
+logger_perf start: threads=4, duration=8s, message_size=1024 bytes
+elapsed_s=8.00, total_logs=835570, logs_per_s=104413.17, avg_log_call_us=34.77, max_log_call_us=14785.86
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=8 duration=8 size=1024
+logger_perf start: threads=8, duration=8s, message_size=1024 bytes
+elapsed_s=8.00, total_logs=867314, logs_per_s=108398.11, avg_log_call_us=69.94, max_log_call_us=14135.03
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=16 duration=8 size=1024
+logger_perf start: threads=16, duration=8s, message_size=1024 bytes
+elapsed_s=8.00, total_logs=892064, logs_per_s=111479.75, avg_log_call_us=139.46, max_log_call_us=26159.72
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=32 duration=8 size=1024
+logger_perf start: threads=32, duration=8s, message_size=1024 bytes
+elapsed_s=8.00, total_logs=894961, logs_per_s=111810.49, avg_log_call_us=281.90, max_log_call_us=30866.64
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
+CASE threads=64 duration=8 size=1024
+logger_perf start: threads=64, duration=8s, message_size=1024 bytes
+elapsed_s=8.01, total_logs=839722, logs_per_s=104883.81, avg_log_call_us=605.80, max_log_call_us=30975.76
+Tip: increase threads and compare logs_per_s / avg_log_call_us.
+
