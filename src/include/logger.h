@@ -106,14 +106,14 @@ public:
     void Log(std::string message);
 
     /**
-     * @brief 显式切换日志落盘后端
+     * @brief 显式切换日志落盘后端(mmap / sequential)
      * @param mode 落盘后端类型
      */
     void SetWriteMode(LogWriteMode mode);
 
     /**
      * @brief 通过字符串切换日志落盘后端
-     * @param mode_name 支持 mmap / sequential / append / muduo
+     * @param mode_name 支持 mmap / sequential(不区分大小写)
      * @return 是否切换成功
      */
     bool SetWriteModeByName(const std::string& mode_name);

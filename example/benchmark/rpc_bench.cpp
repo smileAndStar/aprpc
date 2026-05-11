@@ -20,7 +20,8 @@ namespace {
 
 struct BenchResult {
     uint64_t ops = 0;
-    uint64_t errors = 0;
+    uint64_t conn_errors = 0;
+    uint64_t verify_errors = 0;
     uint64_t total_ns = 0;
     uint64_t max_ns = 0;
     std::vector<uint64_t> latencies;
@@ -120,6 +121,30 @@ bool VerifyRegisterResponse(const std::vector<char>& body, uint32_t len) {
     return resp.result().errcode() == 0;
 }
 
+bool ProbeServer(const std::string& ip, uint16_t port, const std::string& request_frame,
+                 bool (*verify)(const std::vector<char>&, uint32_t)) {
+    try {
+        boost::asio::io_context ioc;
+        boost::asio::ip::tcp::socket sock(ioc);
+        boost::asio::ip::tcp::resolver resolver(ioc);
+        boost::asio::connect(sock, resolver.resolve(ip, std::to_string(port)));
+
+        boost::asio::write(sock, boost::asio::buffer(request_frame));
+
+        uint32_t resp_len_net = 0;
+        boost::asio::read(sock, boost::asio::buffer(&resp_len_net, sizeof(resp_len_net)));
+        uint32_t resp_len = ntohl(resp_len_net);
+
+        std::vector<char> resp_body(resp_len);
+        boost::asio::read(sock, boost::asio::buffer(resp_body));
+
+        return verify(resp_body, resp_len);
+    } catch (const std::exception& e) {
+        std::cerr << "Probe failed: " << e.what() << "\n";
+        return false;
+    }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -167,6 +192,16 @@ int main(int argc, char* argv[]) {
         verify_response = VerifyRegisterResponse;
     }
 
+    // 预检：探测一次确认 server 可达且正常响应
+    std::cout << "probing " << server_ip << ":" << server_port << " ... " << std::flush;
+    if (!ProbeServer(server_ip, server_port, request_frame, verify_response)) {
+        std::cerr << "\nError: server " << server_ip << ":" << server_port
+                  << " is not reachable or returned an error.\n"
+                  << "Make sure the provider is running before starting the benchmark.\n";
+        return 1;
+    }
+    std::cout << "ok\n";
+
     std::cout << "rpc_bench start: threads=" << threads
               << ", duration=" << duration_seconds << "s"
               << ", service=" << (is_login ? "Login" : "Register")
@@ -191,13 +226,15 @@ int main(int argc, char* argv[]) {
             while (!stop.load(std::memory_order_relaxed)) {
                 auto t1 = std::chrono::steady_clock::now();
 
-                bool ok = false;
+                bool conn_ok = false;
+                bool verify_ok = false;
                 try {
                     boost::asio::io_context ioc;
                     boost::asio::ip::tcp::socket sock(ioc);
                     boost::asio::ip::tcp::resolver resolver(ioc);
                     boost::asio::connect(
                         sock, resolver.resolve(server_ip, std::to_string(server_port)));
+                    conn_ok = true;
 
                     boost::asio::write(sock, boost::asio::buffer(request_frame));
 
@@ -209,9 +246,8 @@ int main(int argc, char* argv[]) {
                     std::vector<char> resp_body(resp_len);
                     boost::asio::read(sock, boost::asio::buffer(resp_body));
 
-                    ok = verify_response(resp_body, resp_len);
+                    verify_ok = verify_response(resp_body, resp_len);
                 } catch (const std::exception&) {
-                    ok = false;
                 }
 
                 auto t2 = std::chrono::steady_clock::now();
@@ -224,8 +260,10 @@ int main(int argc, char* argv[]) {
                 if (local.latencies.size() < kLatencyReserve) {
                     local.latencies.push_back(ns);
                 }
-                if (!ok) {
-                    local.errors += 1;
+                if (!conn_ok) {
+                    local.conn_errors += 1;
+                } else if (!verify_ok) {
+                    local.verify_errors += 1;
                 }
             }
             results[static_cast<size_t>(i)] = std::move(local);
@@ -244,14 +282,16 @@ int main(int argc, char* argv[]) {
 
     // 汇总统计
     uint64_t total_ops = 0;
-    uint64_t total_errors = 0;
+    uint64_t total_conn_errors = 0;
+    uint64_t total_verify_errors = 0;
     uint64_t total_ns = 0;
     uint64_t max_ns = 0;
     std::vector<uint64_t> all_latencies;
 
     for (auto& r : results) {
         total_ops += r.ops;
-        total_errors += r.errors;
+        total_conn_errors += r.conn_errors;
+        total_verify_errors += r.verify_errors;
         total_ns += r.total_ns;
         max_ns = std::max(max_ns, r.max_ns);
         all_latencies.insert(all_latencies.end(), r.latencies.begin(), r.latencies.end());
@@ -282,7 +322,8 @@ int main(int argc, char* argv[]) {
     std::cout << std::fixed << std::setprecision(2)
               << "elapsed=" << elapsed_seconds << "s"
               << ", total_reqs=" << total_ops
-              << ", errors=" << total_errors
+              << ", conn_err=" << total_conn_errors
+              << ", verify_err=" << total_verify_errors
               << ", reqs/s=" << throughput << "\n"
               << "latency(us): avg=" << avg_us
               << ", p50=" << p50_us

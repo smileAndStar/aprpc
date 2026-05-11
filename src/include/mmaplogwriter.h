@@ -39,6 +39,8 @@ private:
     int current_month_; // 当前映射的日志文件对应的月份
     int current_day_;   // 当前映射的日志文件对应的日期
     std::size_t dirty_bytes_;   // 累积的未同步字节数
+    std::string file_name_;     // 当前日志文件名，用于检测文件是否被外部删除
+    int last_check_second_of_day_;  // 上次检测文件的秒级时间戳，用于节流避免每次写都 stat
 
     /**
      * @brief 将字节数对齐到页面边界

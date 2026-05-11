@@ -10,7 +10,8 @@
 
 MmapLogWriter::MmapLogWriter()
     : fd_(-1), map_ptr_(nullptr), map_size_(0), write_offset_(0),
-      current_year_(-1), current_month_(-1), current_day_(-1), dirty_bytes_(0) {}
+      current_year_(-1), current_month_(-1), current_day_(-1), dirty_bytes_(0),
+      last_check_second_of_day_(-1) {}
 
 MmapLogWriter::~MmapLogWriter() {
     Close();
@@ -43,9 +44,23 @@ std::size_t MmapLogWriter::AlignToPage(std::size_t n) {
 }
 
 void MmapLogWriter::EnsureFileReady(const tm& nowtm) {
-    // 如果当前映射的文件已经是当天的文件，则直接返回
+    // 检查当前映射的文件是否已经是当天的文件，且未被外部删除
     if (fd_ != -1 && current_year_ == nowtm.tm_year &&
         current_month_ == nowtm.tm_mon && current_day_ == nowtm.tm_mday) {
+        // 同一秒内已检查过，跳过 stat 系统调用以保持性能
+        int cur_sec = nowtm.tm_hour * 3600 + nowtm.tm_min * 60 + nowtm.tm_sec;
+        if (cur_sec == last_check_second_of_day_) {
+            return;
+        }
+        last_check_second_of_day_ = cur_sec;
+
+        struct stat fd_st, path_st;
+        if (fstat(fd_, &fd_st) == 0) {
+            if (stat(file_name_.c_str(), &path_st) != 0 ||
+                fd_st.st_ino != path_st.st_ino) {
+                OpenForDay(nowtm);
+            }
+        }
         return;
     }
 
@@ -57,20 +72,21 @@ void MmapLogWriter::OpenForDay(const tm& nowtm) {
     Close();    // 先关闭之前的文件和映射
 
     // 文件名，格式："YYYY-MM-DD-log.txt"
-    char file_name[64]; 
-    snprintf(file_name, sizeof(file_name), "%d-%d-%d-log.txt",
+    char file_name_buf[64];
+    snprintf(file_name_buf, sizeof(file_name_buf), "%d-%d-%d-log.txt",
              nowtm.tm_year + 1900, nowtm.tm_mon + 1, nowtm.tm_mday);
+    file_name_ = file_name_buf;
 
     // 以读写方式打开文件，如果不存在则创建，权限为644
-    fd_ = open(file_name, O_RDWR | O_CREAT, 0644);  
+    fd_ = open(file_name_.c_str(), O_RDWR | O_CREAT, 0644);
     if (fd_ == -1) {
-        std::cerr << "Failed to open log file: " << file_name << std::endl;
+        std::cerr << "Failed to open log file: " << file_name_ << std::endl;
         std::exit(EXIT_FAILURE);
     }
 
     struct stat st; // 获取文件状态，主要是为了获取当前文件大小
     if (fstat(fd_, &st) == -1) {
-        std::cerr << "Failed to stat log file: " << file_name << std::endl;
+        std::cerr << "Failed to stat log file: " << file_name_ << std::endl;
         std::exit(EXIT_FAILURE);
     }
 
@@ -82,7 +98,7 @@ void MmapLogWriter::OpenForDay(const tm& nowtm) {
 
     // 扩展文件大小以适应映射大小，如果文件已经足够大则 ftruncate 不会缩小文件
     if (ftruncate(fd_, static_cast<off_t>(map_size_)) == -1) {
-        std::cerr << "Failed to resize log file: " << file_name << std::endl;
+        std::cerr << "Failed to resize log file: " << file_name_ << std::endl;
         std::exit(EXIT_FAILURE);
     }
 
@@ -90,7 +106,7 @@ void MmapLogWriter::OpenForDay(const tm& nowtm) {
     map_ptr_ = mmap(nullptr, map_size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
     if (map_ptr_ == MAP_FAILED) {
         map_ptr_ = nullptr;
-        std::cerr << "Failed to mmap log file: " << file_name << std::endl;
+        std::cerr << "Failed to mmap log file: " << file_name_ << std::endl;
         std::exit(EXIT_FAILURE);
     }
 
@@ -98,6 +114,7 @@ void MmapLogWriter::OpenForDay(const tm& nowtm) {
     current_month_ = nowtm.tm_mon;
     current_day_ = nowtm.tm_mday;
     dirty_bytes_ = 0;
+    last_check_second_of_day_ = -1;
 }
 
 void MmapLogWriter::EnsureCapacity(std::size_t additional_bytes) {
@@ -158,4 +175,6 @@ void MmapLogWriter::Close() {
     current_month_ = -1;
     current_day_ = -1;
     dirty_bytes_ = 0;
+    file_name_.clear();
+    last_check_second_of_day_ = -1;
 }

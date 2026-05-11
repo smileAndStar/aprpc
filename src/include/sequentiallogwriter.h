@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdio>
+#include <string>
 
 /**
  * @brief 基于普通顺序追加写的日志落盘写入器
@@ -20,18 +21,38 @@ public:
     void Flush() override;
 
 private:
-    static constexpr std::size_t kFileBufferBytes = 64 * 1024;
-    static constexpr std::size_t kFlushThresholdBytes = 256 * 1024;
+    static constexpr std::size_t kFileBufferBytes = 8 * 1024;  // FILE 内部缓冲区大小，减少系统调用次数
 
     FILE* fp_;                                          ///< 当前打开的日志文件指针
-    std::array<char, kFileBufferBytes> file_buffer_;    ///< FILE 内部缓冲区，减少系统调用次数
+    std::array<char, kFileBufferBytes> file_buffer_;    ///< FILE 内部缓冲区，减少系统调用次数  (array, 类似 char file_buffer_[8 * 1024];)
     int current_year_;                                  ///< 当前日志文件对应的年份
     int current_month_;                                 ///< 当前日志文件对应的月份
     int current_day_;                                   ///< 当前日志文件对应的日期
-    std::size_t dirty_bytes_;                           ///< 当前缓冲区中尚未刷新的字节数
+    std::string file_name_;                             ///< 当前日志文件名，用于检测文件是否被外部删除
+    int last_check_second_of_day_;                      ///< 上次检测文件的秒级时间戳，用于节流避免每次写都 stat
 
+    /**
+     * @brief 确保当前日志文件已准备好
+     * @param nowtm 当前时间
+     */
     void EnsureFileReady(const tm& nowtm);
+
+    /**
+     * @brief 按天切分文件，打开对应日期的日志文件
+     * @param nowtm 当前时间
+     */
     void OpenForDay(const tm& nowtm);
+
+    /**
+     * @brief 关闭当前日志文件并清空日期状态
+     */
     void Close();
+
+    /**
+     * @brief 无锁写入，直接调用 fwrite_unlocked 以减少线程同步开销
+     * @param data 待写入数据指针
+     * @param len 待写入数据长度
+     * @return 实际写入的字节数
+     */
     std::size_t WriteUnlocked(const char* data, std::size_t len);
 };
