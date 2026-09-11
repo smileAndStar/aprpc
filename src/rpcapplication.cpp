@@ -51,11 +51,11 @@ void RpcApplication::Init(int argc, char* argv[]) {
     try {
         std::string write_mode = m_config.Load<std::string>("logger.write_mode");
         if (!logger.SetWriteModeByName(write_mode)) {
-            std::cerr << "Warning: invalid logger.write_mode '" << write_mode
-                      << "', fallback to mmap" << std::endl;
+            std::cerr << "Warning: invalid logger.write_mode '"
+                    << write_mode << "', fallback to default 'sequential'" << std::endl;
         }
     } catch (const std::exception&) {
-        // logger.write_mode 是可选配置，缺省时保持默认 mmap
+        // logger.write_mode 是可选配置，缺省时保持默认 sequential
     }
 
     std::cout << "RPC Server will start at " << m_config.Load<std::string>("rpc.server_ip")

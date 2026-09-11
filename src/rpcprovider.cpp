@@ -4,6 +4,14 @@
 #include "rpcheader.pb.h"
 #include "logger.h"
 #include "zookeeperutil.h"
+#include <cstring>
+
+namespace {
+    // 协议约定：header 长度上限 64KB（见 AGENTS.md 协议说明）
+    constexpr std::size_t kMaxHeaderSize = 64 * 1024;
+    // 已消费前缀达到该规模时才触发一次缓冲区压缩，用于减少对粘包残留的重复搬移
+    constexpr std::size_t kCompactThreshold = 64 * 1024;
+}  // namespace
 
 void RpcProvider::NotifyService(google::protobuf::Service* service) {
     ServiceInfo serviceInfo;    // 创建服务信息对象
@@ -149,44 +157,97 @@ void RpcProvider::Session::DoRead() {
 void RpcProvider::Session::TryParseAndHandle() {
     // 循环处理：一次 recv 可能包含多条完整消息（粘包），也可能不足一条（半包）
     while (true) {
+        // 未消费区间为 [recv_offset_, recv_buffer_.size())，用读游标定位而不搬移数据
+        const std::size_t readable = recv_buffer_.size() - recv_offset_;
+        const char* frame_ptr = recv_buffer_.data() + recv_offset_;
+
         // === 第一步：判断是否收到了完整的 4 字节 header_size ===
-        if (recv_buffer_.size() < 4) {
-            DoRead();  // 数据不足，继续等待
-            return;
+        if (readable < 4) {
+            break;  // 数据不足，等待下一次读取
         }
 
         uint32_t header_size = 0;
-        recv_buffer_.copy((char*)&header_size, 4, 0);
+        std::memcpy(&header_size, frame_ptr, 4);  // 直接读缓冲区，无需构造临时 string
         header_size = ntohl(header_size);  // 网络字节序转主机字节序，网络都是大端序，主机可能是小端序
 
-        // === 第二步：判断是否收到了完整的 header ===
-        if (recv_buffer_.size() < 4 + header_size) {
-            DoRead();  // header 数据不足，继续等待
-            return;
+        // 防御性校验：header_size 必须落在协议允许的范围内，
+        // 否则一个畸形长度会让连接一直等待永远凑不齐的数据
+        if (header_size == 0 || header_size > kMaxHeaderSize) {
+            LOG_ERR("Session::TryParseAndHandle invalid header_size=%u, close connection!", header_size);
+            recv_buffer_.clear();
+            recv_offset_ = 0;
+            return;  // 协议错误，丢弃数据，连接将在 Session 析构时关闭
         }
 
-        // 反序列化 header，取出 args_size
-        std::string rpc_header_str = recv_buffer_.substr(4, header_size);
+        // === 第二步：判断是否收到了完整的 header ===
+        // 先提升到 size_t 再相加，避免 uint32_t 运算在畸形 args_size 下发生回绕
+        if (readable < 4u + static_cast<std::size_t>(header_size)) {
+            break;  // header 数据不足，等待下一次读取
+        }
+
+        // 零拷贝反序列化 header：直接解析接收缓冲区中的字节，省去 substr 的一次拷贝
         rpcheader::RpcHeader rpcHeader;
-        if (!rpcHeader.ParseFromString(rpc_header_str)) {
+        if (!rpcHeader.ParseFromArray(frame_ptr + 4, static_cast<int>(header_size))) {
             LOG_ERR("Session::TryParseAndHandle parse rpc_header_str error, close connection!");
             recv_buffer_.clear();
+            recv_offset_ = 0;
             return;  // 协议错误，丢弃数据，连接将在 Session 析构时关闭
         }
         uint32_t args_size = rpcHeader.args_size();
 
         // === 第三步：判断是否收到了完整的 args ===
-        if (recv_buffer_.size() < 4 + header_size + args_size) {
-            DoRead();  // args 数据不足，继续等待
-            return;
+        const std::size_t frame_size = 4u + static_cast<std::size_t>(header_size)
+                                          + static_cast<std::size_t>(args_size);
+        if (readable < frame_size) {
+            break;  // args 数据不足，等待下一次读取
         }
 
-        // === 第四步：取出完整的一帧数据，从缓冲区移除 ===
-        std::string args_str = recv_buffer_.substr(4 + header_size, args_size);
-        recv_buffer_.erase(0, 4 + header_size + args_size);  // 已消费，移除
+        // === 第四步：消费当前帧：只推进读游标，不搬移后续残留数据 ===
+        // 若这里改用 recv_buffer_.erase(0, frame_size)，缓冲区中粘包残留的
+        // N 字节会被整段前移，产生 O(N) 的 memmove；改用游标后本步只做一次
+        // 游标累加，为 O(1)（已消费前缀的回收推迟到 CompactRecvBuffer）。
+        const char* args_data = frame_ptr + 4 + header_size;
+        recv_offset_ += frame_size;
 
-        provider_.HandleRequest(shared_from_this(), rpcHeader.service_name(), rpcHeader.method_name(), args_str);
+        provider_.HandleRequest(shared_from_this(),
+                                rpcHeader.service_name(),
+                                rpcHeader.method_name(),
+                                args_data,
+                                args_size);
         // 继续循环，处理 recv_buffer_ 中可能残留的下一条完整消息（解决粘包）
+    }
+
+    // 数据不足一帧：回收已消费前缀（必要时），再注册下一次异步读取
+    CompactRecvBuffer();
+    DoRead();
+}
+
+void RpcProvider::Session::CompactRecvBuffer() {
+    if (recv_offset_ == 0) {
+        return;  // 没有已消费数据，无需处理
+    }
+
+    const std::size_t remaining = recv_buffer_.size() - recv_offset_;
+
+    // 整个缓冲区都已消费完：直接清空，零字节搬移
+    if (remaining == 0) {
+        recv_buffer_.clear();
+        recv_offset_ = 0;
+        return;
+    }
+
+    // 仍有未消费的粘包残留。压缩会把 remaining 字节整体前移，代价为 O(remaining)，
+    // 所以这里做的是「延迟压缩」：只在解析推进不下去时（本函数由 TryParseAndHandle
+    // 在循环退出后调用）压一次，而不是每消费一帧就压一次，从而避免同一段粘包残留
+    // 被反复前移。下面两个条件是压缩的触发门槛，满足其一即压：
+    //  1. 已消费前缀规模较大（>= kCompactThreshold）；
+    //  2. 已消费前缀不少于剩余数据（offset >= remaining），让一次压缩至少
+    //     换掉不少于搬移量的消费进度，避免残留远大于消费时被反复搬移。
+    // 注意：这里只能声明「推进读游标」那一步是 O(1)。erase 本身仍是 O(remaining)，
+    // 其代价至多按已消费字节数摊还，不构成按帧数（尤其是变长消息）的 O(1) 保证。
+    if (recv_offset_ >= kCompactThreshold || recv_offset_ >= remaining) {
+        recv_buffer_.erase(0, recv_offset_);
+        recv_offset_ = 0;
     }
 }
 
@@ -208,10 +269,14 @@ void RpcProvider::Session::DoWrite(std::string response) {
     );
 }
 
-void RpcProvider::HandleRequest(std::shared_ptr<Session> session, const std::string& service_name, const std::string& method_name, const std::string& args_str) {
+void RpcProvider::HandleRequest(std::shared_ptr<Session> session,
+                                const std::string& service_name,
+                                const std::string& method_name,
+                                const char* args_data,
+                                std::size_t args_size) {
     LOG_INFO("RpcProvider::HandleRequest receive rpc request: \
              service_name=%s method_name=%s args_size=%zu",
-             service_name.c_str(), method_name.c_str(), args_str.size());
+             service_name.c_str(), method_name.c_str(), args_size);
 
     /**
      * @note 根据 rpc 请求，查找注册的服务对象以及相应的方法
@@ -239,7 +304,7 @@ void RpcProvider::HandleRequest(std::shared_ptr<Session> session, const std::str
      */
     // 创建请求request和响应response消息对象
     google::protobuf::Message *request = service->GetRequestPrototype(method).New(); // 创建请求对象
-    if (!request->ParseFromString(args_str)) {  // 反序列化请求参数
+    if (!request->ParseFromArray(args_data, static_cast<int>(args_size))) {  // 直接反序列化接收缓冲区中的参数，省去一次拷贝
         LOG_ERR("RpcProvider::HandleRequest parse args_str error!");
         delete request;
         return;

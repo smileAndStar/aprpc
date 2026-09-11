@@ -106,14 +106,14 @@ public:
     void Log(std::string message);
 
     /**
-     * @brief 显式切换日志落盘后端
+     * @brief 显式切换日志落盘后端(mmap / sequential)
      * @param mode 落盘后端类型
      */
     void SetWriteMode(LogWriteMode mode);
 
     /**
      * @brief 通过字符串切换日志落盘后端
-     * @param mode_name 支持 mmap / sequential / append / muduo
+     * @param mode_name 支持 mmap / sequential(不区分大小写)
      * @return 是否切换成功
      */
     bool SetWriteModeByName(const std::string& mode_name);
@@ -149,7 +149,7 @@ private:
     std::condition_variable buffer_cv_;        ///< 用于前后端线程调度唤醒的条件变量
     std::thread write_log_thread_;             ///< 后台落盘线程
     bool stop_requested_ = false;              ///< 进程退出时通知后台线程停止
-    LogWriteMode write_mode_ = LogWriteMode::MMAP;   ///< 当前选定的日志落盘后端
+    LogWriteMode write_mode_ = LogWriteMode::SEQUENTIAL;   ///< 当前选定的日志落盘后端
     ///@}
 
     /**

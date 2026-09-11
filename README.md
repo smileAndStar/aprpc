@@ -130,7 +130,7 @@
 
 ```yaml
 logger:
-  write_mode: "mmap"   # mmap | sequential
+  write_mode: "sequential"   # mmap | sequential
 ```
 
 构建后可执行：
@@ -143,7 +143,7 @@ logger:
 - `threads`: 生产日志的线程数，默认 `8`
 - `duration_seconds`: 压测持续时间（秒），默认 `10`
 - `message_size`: 每条日志消息字节数，默认 `128`
-- `writer_mode`: 日志落盘后端，支持 `mmap` / `sequential`，默认 `mmap`
+- `writer_mode`: 日志落盘后端，支持 `mmap` / `sequential`，默认 `sequential`
 
 示例：
 

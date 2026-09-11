@@ -149,7 +149,7 @@ private:
     std::condition_variable buffer_cv_;        ///< 用于前后端线程调度唤醒的条件变量
     std::thread write_log_thread_;             ///< 后台落盘线程
     bool stop_requested_ = false;              ///< 进程退出时通知后台线程停止
-    LogWriteMode write_mode_ = LogWriteMode::MMAP;   ///< 当前选定的日志落盘后端
+    LogWriteMode write_mode_ = LogWriteMode::SEQUENTIAL;   ///< 当前选定的日志落盘后端
     ///@}
 
     /**
