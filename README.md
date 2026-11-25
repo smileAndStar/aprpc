@@ -42,7 +42,7 @@
 - **实现**:
     - 使用 **Boost.Asio** 实现高性能的网络通信。
     - 维护一个 `serviceMap_`，存储注册的服务对象及其方法描述符 (`MethodDescriptor`)。
-    - 采用 **Proactor 模型**（通过 `io_context`）配合线程池（默认 6 个线程）处理并发请求。
+    - 采用 **Proactor 模型**（通过 `io_context`）配合线程池（8 个 I/O 工作线程）处理并发请求。
     - **NotifyService**: 将用户实现的服务对象注册到框架中。
     - **Run**: 启动 TCP 服务器，监听端口，接受连接并分发请求。
 
@@ -90,21 +90,65 @@
 5. 反序列化参数，调用本地服务方法。
 6. 将执行结果序列化，并加上长度前缀发送回客户端。
 
-## 4. 调用流程
+## 4. 整体框架与完整调用链
 
-1. **定义服务**: 使用 `.proto` 文件定义服务接口和消息类型。
-2. **生成代码**: 使用 `protoc` 生成 C++ 代码 (`.pb.cc`, `.pb.h`)。
-3. **服务端开发**:
-    - 继承生成的 Service 类，实现虚函数（业务逻辑）。
-    - 初始化 `RpcApplication`。
-    - 创建 `RpcProvider`，调用 `NotifyService` 注册服务。
-    - 调用 `Run` 启动服务。
-4. **客户端开发**:
-    - 初始化 `RpcApplication`。
-    - 创建 `RpcChannel` 对象。
-    - 创建生成的 Stub 类对象，传入 `RpcChannel`。
-    - 调用 Stub 对象的方法（就像调用本地方法一样）。
-    - `RpcChannel::CallMethod` 被触发，完成网络通信。
+当前实现是 **同步短连接客户端 + 异步服务端**：客户端通过阻塞式 `connect/write/read` 等待结果；服务端通过 `async_accept/async_read_some/async_write` 处理网络 I/O。正常路径下，每次 RPC 都会重新进行 ZooKeeper 服务发现并新建 TCP 连接。
+
+### 4.1 框架图
+
+实线表示一次 `Login` 调用链，橙色和灰色虚线分别表示服务注册/发现与 Provider 启动流程。框样式区分代码归属：**蓝色**为调用方业务代码，**灰色虚线框**为 Protobuf 提供或生成的代码，**紫色**为 APRPC 框架实现。
+
+![APRPC 整体框架与 Login 完整调用链](docs/images/aprpc-architecture.svg)
+
+### 4.2 一次 Login 请求的数据流
+
+1. **Provider 启动并发布服务**  
+   `example/callee/userservice.cpp` 的 `main` 依次执行 `RpcApplication::Init`、`NotifyService(new UserService())` 和 `Run`。`NotifyService` 建立服务/方法注册表；`Run` 监听 TCP，并在 ZooKeeper 创建 `/UserServiceRPC/Login` 等节点，节点数据为 Provider 的 `ip:port`。
+
+2. **Consumer 发起类似本地方法的调用**  
+   `example/caller/calluserservice.cpp` 创建 `UserServiceRPC_Stub`、`LoginRequest` 和 `LoginResponse`，然后调用 `stub.Login(...)`。
+
+3. **Stub 进入统一 RPC 通道**  
+   生成的 `UserServiceRPC_Stub::Login` 调用 `RpcChannel::CallMethod`，并传入 `Login` 的 `MethodDescriptor`、请求和响应对象。业务调用由此转换为框架的通用调用。
+
+4. **客户端序列化并组帧**  
+   `RpcChannel::CallMethod` 从描述符取得 `service_name="UserServiceRPC"` 和 `method_name="Login"`，将 `LoginRequest` 序列化为 `args_str`，再构造包含服务名、方法名和 `args_size` 的 `RpcHeader`，最终生成第 3 节描述的请求帧。
+
+5. **服务发现与 TCP 发送**  
+   客户端连接 ZooKeeper，查询 `/UserServiceRPC/Login`，得到 `ip:port`；随后同步执行 `connect` 和 `write`，将完整请求发送给 Provider。
+
+6. **服务端接收并拆包**  
+   `async_accept` 为连接创建 `Session`，`Session::DoRead` 将数据追加到持久接收缓冲区，`TryParseAndHandle` 按 `header_size` 和 `args_size` 判断帧是否完整，同时处理 TCP 半包和粘包。
+
+7. **服务端分发到业务方法**  
+   `RpcProvider::HandleRequest` 根据服务名和方法名查询 `serviceMap_`，通过 Protobuf 原型创建具体的 `LoginRequest`/`LoginResponse`，反序列化参数后调用 `service->CallMethod`。生成的 `UserServiceRPC::CallMethod` 再根据 `method->index()` 分发到 `UserService::Login`。
+
+8. **业务完成并触发响应**  
+   `UserService::Login` 读取请求、执行本地业务、填写响应，最后调用 `done->Run()`。该回调实际进入 `RpcProvider::SendRpcResponse`，将响应组织为 `[4B response_len][LoginResponse]`，再通过 `Session::DoWrite` 异步写回。
+
+9. **客户端同步返回**  
+   `RpcChannel::CallMethod` 阻塞读取响应长度和完整响应体，将数据反序列化到调用方提供的 `LoginResponse`，随后返回到 Consumer 的 `main`。
+
+### 4.3 关键程序入口速查
+
+| 阶段 | 程序入口 | 位置 |
+|---|---|---|
+| 服务接口定义 | `UserServiceRPC`、`LoginRequest`、`LoginResponse` | `example/proto_gen/user.proto` |
+| Consumer 入口 | `main`、`stub.Login` | `example/caller/calluserservice.cpp` |
+| 客户端统一入口 | `RpcChannel::CallMethod` | `src/rpcchannel.cpp` |
+| 服务发现 | `ZkClient::Start`、`ZkClient::GetData` | `src/zookeeperutil.cpp` |
+| Provider 入口 | `main`、`NotifyService`、`Run` | `example/callee/userservice.cpp` |
+| 接收与拆包 | `Session::DoRead`、`TryParseAndHandle` | `src/rpcprovider.cpp` |
+| 服务端统一分发 | `RpcProvider::HandleRequest` | `src/rpcprovider.cpp` |
+| 业务实现 | `UserService::Login`、`done->Run` | `example/callee/userservice.cpp` |
+| 响应发送 | `SendRpcResponse`、`Session::DoWrite` | `src/rpcprovider.cpp` |
+
+### 4.4 服务开发步骤
+
+1. **定义服务**：使用 `.proto` 文件定义服务接口和消息类型，并设置 `option cc_generic_services = true`，确保生成 Service 和 Stub。
+2. **生成代码**：使用 `protoc` 生成 C++ 代码（`.pb.cc`、`.pb.h`）；仓库中已有 proto 的生成文件已纳入版本管理。
+3. **服务端开发**：继承生成的 Service 类并实现业务虚函数，然后通过 `RpcProvider::NotifyService` 发布服务，调用 `Run` 启动。
+4. **客户端开发**：创建 `RpcChannel` 和生成的 Stub，将 Channel 传给 Stub，然后直接调用 Stub 方法并读取响应。
 
 ## 5. 关键技术点
 

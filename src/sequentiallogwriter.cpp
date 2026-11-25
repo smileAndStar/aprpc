@@ -1,3 +1,31 @@
+/**
+ * @file sequentiallogwriter.cpp
+ * @brief 顺序写（sequential append）日志落盘后端
+ *
+ * ============================ 为什么顺序写更快 ============================
+ * 相比"每条日志都 open/write/close 一次"的朴素实现，本实现省下了四处开销：
+ *
+ *  1. 免去反复打开关闭：文件只在首次写入、切换日期或检测到被外部删除时才
+ *     重新打开（OpenForDay），其余时间一直复用同一个 FILE*。
+ *  2. 用户态缓冲摊薄系统调用：OpenForDay 中通过 setvbuf 设置 8KB 全缓冲，
+ *     绝大多数 Append 只是一次 memcpy 进用户缓冲区，不陷入内核；只有缓冲区
+ *     写满或 Flush 时才真正触发 write(2)。
+ *  3. 契合文件系统与磁盘的顺序访问特性：追加写使文件偏移单调增长，配合内核
+ *     页缓存的预读与回写、块分配器的顺序分配，能减少随机寻道和元数据抖动。
+ *  4. 免去 stdio 自身的加锁：写入方只有 Logger 的单后台线程，FILE* 不存在
+ *     多线程竞争，因此可以安全使用 fwrite_unlocked，省掉 _IO_flockfile 的开销。
+ *
+ * ============================ 落盘的数据流与语义 ============================
+ *
+ *     业务/I-O 线程              Logger 后台线程                 内核              磁盘
+ *     LOG_INFO -> 内存队列  ->  Append -> fwrite_unlocked  ->  write(2)  ->  fsync
+ *                               (用户态 8KB 缓冲)        (page cache)     (介质)
+ *
+ * 注意 Flush() 只调用 fflush，语义是"把用户态缓冲交给内核 page cache"，
+ * 并不等于数据已经写入磁盘。本类不提供 fsync，因此这是"异步批量落盘"，
+ * 而不是"掉电不丢"的强持久化保证。
+ */
+
 #include "sequentiallogwriter.h"
 
 #include <cerrno>
@@ -6,6 +34,8 @@
 #include <iostream>
 #include <sys/stat.h>
 #include <unistd.h>
+
+
 
 // 构造函数，初始化文件指针与日期状态
 SequentialLogWriter::SequentialLogWriter()

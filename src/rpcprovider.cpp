@@ -95,7 +95,7 @@ void RpcProvider::Run() {
         // session timeout   30s     zkclient 网络I/O线程  1/3 * timeout 时间发送ping心跳
         ZkClient zkCli;
         zkCli.Start();
-        // service_name为永久性节点    method_name为临时性节点
+        // service_name 为永久性节点    method_name为临时性节点
         for (auto &sp : serviceMap_) 
         {
             // /service_name   /UserServiceRpc
@@ -170,7 +170,7 @@ void RpcProvider::Session::TryParseAndHandle() {
         std::memcpy(&header_size, frame_ptr, 4);  // 直接读缓冲区，无需构造临时 string
         header_size = ntohl(header_size);  // 网络字节序转主机字节序，网络都是大端序，主机可能是小端序
 
-        // 防御性校验：header_size 必须落在协议允许的范围内，
+        // header_size 必须落在协议允许的范围内，
         // 否则一个畸形长度会让连接一直等待永远凑不齐的数据
         if (header_size == 0 || header_size > kMaxHeaderSize) {
             LOG_ERR("Session::TryParseAndHandle invalid header_size=%u, close connection!", header_size);
@@ -321,8 +321,10 @@ void RpcProvider::HandleRequest(std::shared_ptr<Session> session,
         response
     );
 
-    // === 在框架上根据远程 rpc 调用请求，调用服务对象的方法 === 
-    // protobuf会根据method描述符，调用对应的服务方法,并传入request、response、done参数,最终填充好response对象，并调用done回调
+    // 服务端分发入口：调用 google::protobuf::Service::CallMethod，
+    // 不是客户端用于网络传输的 RpcChannel::CallMethod。
+    // Protobuf 生成的 Service 实现按 method->index() 分发到具体业务方法；
+    // 业务方法填充 response，完成后通过 done 回调发送响应。
     service->CallMethod(method, nullptr, request, response, done);
     
     // 释放request内存

@@ -6,15 +6,16 @@
 #include "zookeeperutil.h"
 #include <boost/asio.hpp>
 
-// RpcChannel实现,当客户端 Stub 对象调用 rpc 方法时(见 example的calluserservice.cpp)，框架会触发该函数的调用
+// 客户端传输入口：实现 google::protobuf::RpcChannel::CallMethod。
+// Stub 将业务调用转到这里，由本函数负责序列化、服务发现和 TCP 收发；
+// 它与服务端 google::protobuf::Service::CallMethod 的本地方法分发职责不同。
 void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
                            google::protobuf::RpcController* controller,
                            const google::protobuf::Message* request,
                            google::protobuf::Message* response,
                            google::protobuf::Closure* done) {
 
-    const google::protobuf::ServiceDescriptor* sd = method->service();  // 获取服务描述符
-    std::string service_name = sd->name();                      // 获取服务名称
+    std::string service_name = method->service()->name();        // 获取服务名称
     std::string method_name = method->name();                    // 获取方法名称
 
     // ==================== 组织rpc请求的字符流 ====================

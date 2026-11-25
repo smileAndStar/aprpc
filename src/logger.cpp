@@ -182,7 +182,7 @@ void Logger::Log(std::string message) {
 
         bool was_empty = active_buffer_.empty();
         // 将日志消息添加到 active_buffer_ 中
-        active_buffer_.push_back(LogItem{tls_log_level, std::move(message)});
+        active_buffer_.push_back(LogItem{tls_log_level, std::move(message)});   // 移动构造
         
         // 两种情况需要唤醒后台线程：
         // 1. 从空变非空，启动本轮聚合/落盘
