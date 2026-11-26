@@ -2,6 +2,7 @@
 
 #include "google/protobuf/service.h"
 #include <cstddef>
+#include <deque>
 #include <unordered_map>
 #include <boost/asio.hpp>
 
@@ -49,7 +50,8 @@ class RpcProvider {
                  */
                 Session(boost::asio::ip::tcp::socket socket, RpcProvider& provider)
                     : socket_(std::move(socket)),
-                      provider_(provider) {}
+                      provider_(provider),
+                      strand_(boost::asio::make_strand(socket_.get_executor())) {}
 
                 /**
                  * @brief 启动会话
@@ -57,8 +59,10 @@ class RpcProvider {
                 void Start();
 
                 /**
-                 * @brief 写入数据
-                 * @param response 响应数据
+                 * @brief 将完整响应加入会话发送队列，保持连接供后续请求复用。
+                 * @param response 含长度前缀的响应帧；值参数由队列持有到发送完成。
+                 * @note 可由 RPC 完成线程调用；通过 strand 串行访问 socket 与队列。
+                 * @note 非阻塞；分配或投递失败可抛出异常，I/O 失败则关闭会话。
                  */
                 void DoWrite(std::string response);
 
@@ -86,8 +90,13 @@ class RpcProvider {
                  */
                 void CompactRecvBuffer();
 
+                // 仅在 strand 上调用；同一连接始终只有一个 async_write 在途。
+                void DoWriteNext();
+
                 boost::asio::ip::tcp::socket socket_;  // TCP套接字
                 RpcProvider& provider_;                 // 引用RpcProvider对象
+                boost::asio::strand<boost::asio::any_io_executor> strand_;
+                std::deque<std::shared_ptr<std::string>> write_queue_; ///< 由 strand 保护的完整帧队列。
                 std::vector<char> buffer_;               // 单次读取的临时缓冲区
                 std::string recv_buffer_;                // 持久化接收缓冲区，跨多次读取累积数据
                 std::size_t recv_offset_ = 0;            // 读游标：recv_buffer_ 中已消费字节数（未压缩前缀）

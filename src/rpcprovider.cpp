@@ -139,19 +139,20 @@ void RpcProvider::Session::Start() {
 }
 
 void RpcProvider::Session::DoRead() {
-    std::shared_ptr<RpcProvider::Session> self(shared_from_this());  // 获取shared_ptr指向当前对象的指针，保证对象在异步操作期间存活！
-    buffer_.resize(4096);  // 调整单次读取的临时缓冲区大小
-
-    // 注册异步读取回调函数，当有数据到达时调用该回调函数
-    socket_.async_read_some(    // 异步读取数据，不会阻塞，当有数据到达时调用回调函数
-        boost::asio::buffer(buffer_), 
-        [this, self](boost::system::error_code ec, std::size_t length) {
-            if (!ec) {
-                recv_buffer_.append(buffer_.data(), length);  // 追加到持久化缓冲区
-                TryParseAndHandle();                          // 尝试解析完整帧
-            }
-        }
-    );
+    auto self = shared_from_this();
+    buffer_.resize(4096);
+    socket_.async_read_some(
+        boost::asio::buffer(buffer_),
+        boost::asio::bind_executor(strand_,
+            [this, self](boost::system::error_code ec, std::size_t length) {
+                if (!ec) {
+                    recv_buffer_.append(buffer_.data(), length);
+                    TryParseAndHandle();
+                } else {
+                    boost::system::error_code ignored;
+                    socket_.close(ignored);
+                }
+            }));
 }
 
 void RpcProvider::Session::TryParseAndHandle() {
@@ -252,21 +253,31 @@ void RpcProvider::Session::CompactRecvBuffer() {
 }
 
 void RpcProvider::Session::DoWrite(std::string response) {
-    std::shared_ptr<RpcProvider::Session> self(shared_from_this());  // 获取shared_ptr指向当前对象的指针，保证对象在异步操作期间存活！
-    std::shared_ptr<std::string> write_buffer = std::make_shared<std::string>(std::move(response)); // 通过值传递或移动语义保持发送数据的生命周期，直到发送完成
+    auto self = shared_from_this();
+    auto frame = std::make_shared<std::string>(std::move(response));
+    boost::asio::post(strand_, [this, self, frame] {
+        if (!socket_.is_open()) return;
+        write_queue_.push_back(frame);
+        if (write_queue_.size() == 1) DoWriteNext();
+    });
+}
 
-    // 异步写入数据，不会阻塞，当数据发送完成时调用回调函数
-    boost::asio::async_write(
-        socket_,
-        boost::asio::buffer(*write_buffer),
-        [this, self, write_buffer](boost::system::error_code ec, std::size_t /*length*/) {    // 发送完成回调
-            if (!ec) {
-                // 关闭连接
-                boost::system::error_code ignored_ec;   // 忽略错误码
-                socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
-            }
-        }
-    );
+void RpcProvider::Session::DoWriteNext() {
+    auto self = shared_from_this();
+    auto frame = write_queue_.front();
+    // 捕获帧直到异步写完成；出错清空队列也不会使在途 buffer 悬空。
+    boost::asio::async_write(socket_, boost::asio::buffer(*frame),
+        boost::asio::bind_executor(strand_,
+            [this, self, frame](boost::system::error_code ec, std::size_t) {
+                if (ec) {
+                    write_queue_.clear();
+                    boost::system::error_code ignored;
+                    socket_.close(ignored);
+                    return;
+                }
+                write_queue_.pop_front();
+                if (!write_queue_.empty()) DoWriteNext();
+            }));
 }
 
 void RpcProvider::HandleRequest(std::shared_ptr<Session> session,
